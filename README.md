@@ -13,14 +13,21 @@ Developed as an extra credit project for **CSC 2510: Theoretical Foundations for
 The project splits execution into two highly optimized pipelines:
 
 ```
-                  [ Offline Ingestion Pipeline ]
-Raw Notes (.md) ──> Chunker ──> Stemmer (Sets) ───────┐
-                              └──> Ollama (Embed) ────┼──> SQLite DB (.db)
-                                                      │
-                  [ Real-Time Search Pipeline ]       │
-Query ────────────> Stemmer ──> BM25 Matcher ─────────┤
-      └───────────> Ollama ──> Cosine Similarity ─────┴──> Hybrid Ranker ──> Top Results (WebUI)
+┌──────────────────────── Offline Ingestion Pipeline ────────────────────────┐
+│                                                                            │
+│ Raw Notes (.md) ──> Chunker ─┬─> Stemmer (Sets) ───────┐                   │
+│                              │                         v                   │
+│                              └─> Ollama (Embed) ──────> SQLite DB (.db) ───┼──┐
+└────────────────────────────────────────────────────────────────────────────┘  │
+                                                                                │
+┌───────────────────────── Real-Time Search Pipeline ────────────────────────┐  │
+│                                                                            │  │
+│ Query ─┬─> Stemmer ──> BM25 Matcher ───────────────────┐                   │  │
+│        │                                               v                   │  v
+│        └─> Ollama ───> Cosine Similarity ─────────────> Hybrid Ranker ────────> Top Results (WebUI)
+└────────────────────────────────────────────────────────────────────────────┘
 ```
+
 
 ---
 
