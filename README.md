@@ -1,6 +1,6 @@
 # cosi
 
-(Pronounced "Cozy"; From **cosi**ne similarity)
+(Pronounced "Cozy"; From **co**sine **si**milarity)
 
 A lightweight, blazingly fast, and completely offline search utility for personal notes and markdown documents. This project merges classical discrete mathematics with modern vector embeddings to provide robust hybrid retrieval.
 
