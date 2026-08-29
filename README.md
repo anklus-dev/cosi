@@ -46,7 +46,8 @@ flowchart LR
 
 This is a record of *my* environment while developing this project.
 
-- **Environment:** NixOS / Linux
+- **Development Environment:** NixOS / Linux
+- **Deployment Platform**: Docker (Cross-platform compatability)
 - **Runtime:** Python 3.x
 - **Libraries:** 
   - `nltk` (Tokenization & stemming baseline)
