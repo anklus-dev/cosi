@@ -12,20 +12,31 @@ Developed as an extra credit project for **CSC 2510: Theoretical Foundations for
 
 The project splits execution into two highly optimized pipelines:
 
+```mermaid
+flowchart LR
+    subgraph offline["Offline Ingestion Pipeline"]
+        direction TB
+        raw["Raw Notes (.md)"] --> chunker["Chunker"]
+        chunker --> stemmer1["Stemmer (Sets)"]
+        chunker --> embed["Ollama (Embed)"]
+        stemmer1 --> db[("SQLite DB (.db)")]
+        embed --> db
+    end
 ```
-┌──────────────────────── Offline Ingestion Pipeline ────────────────────────┐
-│                                                                            │
-│ Raw Notes (.md) ──> Chunker ─┬─> Stemmer (Sets) ───────┐                   │
-│                              │                         v                   │
-│                              └─> Ollama (Embed) ──────> SQLite DB (.db) ───┼──┐
-└────────────────────────────────────────────────────────────────────────────┘  │
-                                                                                │
-┌───────────────────────── Real-Time Search Pipeline ────────────────────────┐  │
-│                                                                            │  │
-│ Query ─┬─> Stemmer ──> BM25 Matcher ───────────────────┐                   │  │
-│        │                                               v                   │  v
-│        └─> Ollama ───> Cosine Similarity ─────────────> Hybrid Ranker ────────> Top Results (WebUI)
-└────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph search["Query"]
+        direction TB
+        query["Query"] --> stemmer2["Stemmer"]
+        query --> ollama2["Ollama"]
+        stemmer2 --> bm25["BM25 Matcher"]
+        ollama2 --> cosine["Cosine Similarity"]
+        bm25 --> ranker["Hybrid Ranker"]
+        cosine --> ranker
+        ranker --> results["Top Results (WebUI)"]
+    end
+
+    db --> ranker
 ```
 
 
