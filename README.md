@@ -1,4 +1,6 @@
-# Local Hybrid Search Engine (Semantic & Keyword)
+# cosi
+
+(Pronounced "Cozy"; From **cosi**ne similarity)
 
 A lightweight, blazingly fast, and completely offline search utility for personal notes and markdown documents. This project merges classical discrete mathematics with modern vector embeddings to provide robust hybrid retrieval.
 
@@ -45,3 +47,4 @@ To be written. Once the functionality is complete, the user-end will be consider
 ## Developer Log
 
 - **2026-08-29:** Initialized private Git repository. Verified professor's BM25 benchmark script running successfully on NixOS.
+
