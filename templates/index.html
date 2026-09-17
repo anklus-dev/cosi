@@ -2,19 +2,29 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>cosi &mdash; local hybrid note search</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <!-- Search bar: real-time autocompletion hits /api/search via script.js -->
     <main>
-        <h1>cosi</h1>
-        <input id="search-box" type="text" placeholder="Search your notes..." autocomplete="off">
-        <button id="refresh-btn">Refresh Index</button>
-        <div id="refresh-status"></div>
+        <header class="page-header">
+            <h1>cosi</h1>
+            <p class="tagline">Search here:</p>
+        </header>
 
-        <!-- Results Panel: populated client-side with ranked paragraph cards -->
-        <section id="results"></section>
+        <div class="search-row">
+            <input
+                id="search-box"
+                type="text"
+                placeholder="Search your notes..."
+                autocomplete="off"
+            >
+            <button id="refresh-btn" type="button">Refresh index</button>
+        </div>
+        <div id="refresh-status" role="status"></div>
+
+        <section id="results" aria-live="polite"></section>
     </main>
 
     <script src="{{ url_for('static', filename='script.js') }}"></script>
