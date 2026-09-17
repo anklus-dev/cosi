@@ -1,17 +1,14 @@
-# Ignore Python cache files
+# Generated SQLite database (rebuilt via offline_ingest.py)
+data/*.db
+
+# Python
 __pycache__/
 *.pyc
-.ipynb_checkpoints/
-
-# Ignore local SQLite databases (your code will generate these)
-*.db
-*.sqlite3
-
-# Ignore virtual environments
 .venv/
-env/
 venv/
-ENV/
 
-# Ignore system-specific files
+# NLTK downloaded corpora, if cached locally in-repo
+nltk_data/
+
+# Editor/OS cruft
 .DS_Store

@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>cosi &mdash; local hybrid note search</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <!-- Search bar: real-time autocompletion hits /api/search via script.js -->
+    <main>
+        <h1>cosi</h1>
+        <input id="search-box" type="text" placeholder="Search your notes..." autocomplete="off">
+        <button id="refresh-btn">Refresh Index</button>
+
+        <!-- Results Panel: populated client-side with ranked paragraph cards -->
+        <section id="results"></section>
+    </main>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+# requirements.txt
+# Core dependencies per cosi_design_doc.md and README.md tech stack.
+
+flask
+nltk
+numpy
+# requests is optional -- test_ollama.py / offline_ingest.py currently use urllib
+# to avoid an extra dependency; swap in `requests` here if that changes.

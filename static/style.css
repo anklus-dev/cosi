@@ -1,0 +1,44 @@
+/* style.css
+   Basic styling for the cosi search dashboard.
+*/
+
+body {
+    font-family: system-ui, sans-serif;
+    max-width: 720px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+}
+
+#search-box {
+    width: 70%;
+    padding: 0.5rem;
+    font-size: 1rem;
+}
+
+#refresh-btn {
+    padding: 0.5rem 1rem;
+    margin-left: 0.5rem;
+}
+
+.result-card {
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    margin-top: 1rem;
+}
+
+.result-score {
+    font-size: 0.8rem;
+    color: #888;
+}
+
+.result-path {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #444;
+    margin: 0.2rem 0 0.4rem;
+}
+
+.result-text {
+    white-space: pre-wrap;
+}
