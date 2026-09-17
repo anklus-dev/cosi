@@ -42,3 +42,17 @@ body {
 .result-text {
     white-space: pre-wrap;
 }
+
+.result-text mark {
+    background-color: #fff3a3;
+    color: inherit;
+    font-weight: 600;
+    border-radius: 2px;
+    padding: 0 2px;
+}
+
+#refresh-status {
+    font-size: 0.85rem;
+    color: #555;
+    margin-top: 0.5rem;
+}

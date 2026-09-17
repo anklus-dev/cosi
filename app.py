@@ -49,10 +49,12 @@ def api_refresh():
     """
     Manually trigger re-indexing of the notes directory.
     Corresponds to the "Prompted Refresh" mitigation strategy (user-initiated,
-    not an automatic background process).
+    not an automatic background process). Returns stats (files/chunks indexed,
+    and any unsupported file types found in notes/) so the UI can report
+    specifics back to the user instead of a bare "done".
     """
-    offline_ingest.ingest()
-    return jsonify({"status": "ok"})
+    stats = offline_ingest.ingest()
+    return jsonify(stats)
 
 
 if __name__ == "__main__":
