@@ -57,6 +57,13 @@ This is a record of *my* environment while developing this project.
 
 ---
 
+## AI disclaimer
+
+AI was used while writing this project. The ideas, priorities, and direction of the project stayed entirely mine in the process. I had a very specific, scoped idea for how I wanted this project to look from the beginning, and I never strayed from it.
+
+**Q: What AI did you use?**
+**A:** I primarily used Anthropic's Claude for mapping out demo code and structure which I used as a jumping off point.
+
 ## Quick Start & Setup
 
 To be written. Once the functionality is complete, the user-end will be considered.
