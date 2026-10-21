@@ -1,0 +1,20 @@
+# Linux override: share the host's network stack.
+#
+# Why: on Linux, Ollama listens on 127.0.0.1 by default, which a bridged
+# container can't reach through host.docker.internal. Host networking lets the
+# container use localhost:11434 directly -- no need to expose Ollama to the LAN
+# or open firewall ports (relevant on NixOS, whose firewall is on by default).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.linux.yml up --build
+#
+# Requires Docker Compose v2.18+ (for !reset).
+
+services:
+  cosi:
+    network_mode: host
+    ports: !reset []
+    extra_hosts: !reset []
+    environment:
+      COSI_OLLAMA_URL: http://localhost:11434
+      # With host networking, Flask binds directly on the host; keep it local-only.
+      COSI_BIND: 127.0.0.1

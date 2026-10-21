@@ -1,0 +1,26 @@
+# Keep the build context small and the image free of local state.
+.git/
+.gitignore
+__pycache__/
+**/__pycache__/
+*.pyc
+.venv/
+venv/
+.direnv/
+result
+result-*
+
+# Local index -- the container builds its own (or you mount ./data)
+data/
+
+# Dev-only / non-runtime files
+flake.nix
+flake.lock
+tests/
+resources/
+*.pptx
+*.docx
+local_search_engine.py
+docker-compose*.yml
+Dockerfile
+.dockerignore

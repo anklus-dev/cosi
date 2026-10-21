@@ -1,0 +1,24 @@
+# Default setup: works on macOS and Windows (Docker Desktop) with no changes.
+#   docker compose up --build
+# Then open http://localhost:8000
+#
+# Linux hosts: use the host-network override instead (see README):
+#   docker compose -f docker-compose.yml -f docker-compose.linux.yml up --build
+
+services:
+  cosi:
+    build: .
+    image: cosi:latest
+    container_name: cosi
+    ports:
+      # Bound to 127.0.0.1 so your notes aren't served to the rest of the network.
+      - "127.0.0.1:8000:8000"
+    environment:
+      COSI_OLLAMA_URL: http://host.docker.internal:11434
+    extra_hosts:
+      # Docker Desktop defines host.docker.internal already; this adds it on Linux too.
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./notes:/app/notes
+      - ./data:/app/data
+    restart: unless-stopped

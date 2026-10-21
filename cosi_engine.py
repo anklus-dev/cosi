@@ -13,12 +13,15 @@ Responsibilities:
        load cached chunk vectors from SQLite, and compute Cosine Similarity with NumPy.
     3. Score Blender: normalize both score arrays to [0, 1] and combine:
            Final Score = (0.4 * BM25) + (0.6 * Cosine Similarity)
-    4. Return the ranked chunks (source file, raw text, and component scores)
-       for consumption by app.py.
+    4. Return the ranked chunks (source file, raw text, blended score, and the
+       BM25 / cosine component scores) for consumption by app.py.
 
-Graceful fallback: if no chunk has a stored embedding (Ollama was offline during
-ingest) or the query itself can't be embedded (Ollama offline right now), the
-vector branch is skipped and results are ranked on BM25 alone.
+Graceful fallback (cosi_design_doc.md Section 6): Ollama is checked with a fast
+ping (check_ollama) at startup and then at most every OLLAMA_STATUS_TTL seconds.
+While it is down, the query is never sent for embedding -- so searches don't
+stall waiting on a dead connection -- and results are ranked on BM25 alone.
+The same fallback applies if no chunk has a stored embedding (Ollama was
+offline during ingest).
 
 Performance note: rebuilding the BM25 inverted index and re-reading every chunk's
 embedding from SQLite on every single query doesn't scale past a small corpus.
@@ -26,15 +29,20 @@ _get_corpus() caches both structures in memory, keyed off the database file's
 mtime, and only rebuilds when the DB has actually changed (i.e. after an ingest).
 """
 
+import json
 import math
 import os
 import re
 import sqlite3
+import time
+import urllib.error
+import urllib.request
 
 import numpy as np
-
-from offline_ingest import DB_PATH, blob_to_vector, get_embedding
 from nltk.stem import PorterStemmer
+
+from config import EMBED_MODEL, OLLAMA_PING_TIMEOUT, OLLAMA_STATUS_TTL, OLLAMA_URL, TAGS_URL
+from offline_ingest import DB_PATH, blob_to_vector, get_embedding
 
 BM25_WEIGHT = 0.4
 COSINE_WEIGHT = 0.6
@@ -57,6 +65,54 @@ _stemmer = PorterStemmer()
 #            "N": ..., "embedding_ids": [...], "embedding_matrix": np.ndarray | None}}
 _corpus_cache = {}
 
+# Cached result of the last Ollama health ping.
+_ollama_status = {"ok": False, "reason": "not checked yet", "checked_at": None}
+
+
+# ---------------------------------------------------------------------------
+# Ollama health check (Graceful Fallback)
+# ---------------------------------------------------------------------------
+
+def _ping_ollama():
+    """
+    One fast request to Ollama's /api/tags. Confirms the server is reachable
+    AND that the embedding model has been pulled. Returns (ok, reason).
+    """
+    try:
+        with urllib.request.urlopen(TAGS_URL, timeout=OLLAMA_PING_TIMEOUT) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (OSError, ValueError) as e:  # URLError/timeouts are OSErrors; bad JSON is ValueError
+        return False, f"Ollama unreachable at {OLLAMA_URL} ({e})"
+
+    names = {m.get("name", "") for m in payload.get("models", [])}
+    if not any(n == EMBED_MODEL or n.startswith(EMBED_MODEL + ":") for n in names):
+        return False, f"model '{EMBED_MODEL}' is not pulled (run: ollama pull {EMBED_MODEL})"
+
+    return True, f"Ollama reachable at {OLLAMA_URL} with '{EMBED_MODEL}'"
+
+
+def check_ollama(force=False):
+    """
+    Return the cached Ollama status, re-pinging if forced or if the cached
+    result is older than OLLAMA_STATUS_TTL. Lets search recover automatically
+    once Ollama comes back up, without pinging on every keystroke.
+    """
+    checked_at = _ollama_status["checked_at"]
+    stale = checked_at is None or (time.monotonic() - checked_at) > OLLAMA_STATUS_TTL
+    if force or stale:
+        ok, reason = _ping_ollama()
+        _ollama_status.update(ok=ok, reason=reason, checked_at=time.monotonic())
+    return {"ok": _ollama_status["ok"], "reason": _ollama_status["reason"]}
+
+
+def _mark_ollama_down(reason):
+    """Record a failure seen mid-search so later queries skip Ollama until the next re-check."""
+    _ollama_status.update(ok=False, reason=reason, checked_at=time.monotonic())
+
+
+# ---------------------------------------------------------------------------
+# Corpus loading & caching
+# ---------------------------------------------------------------------------
 
 def tokenize_and_stem_query(query):
     """Lowercase, strip punctuation, tokenize, and stem the raw query string."""
@@ -65,15 +121,37 @@ def tokenize_and_stem_query(query):
     return [_stemmer.stem(w) for w in words]
 
 
+def _empty_corpus():
+    return {
+        "index": {},
+        "doc_lengths": {},
+        "avg_doc_length": 0.0,
+        "N": 0,
+        "embedding_ids": [],
+        "embedding_matrix": None,
+    }
+
+
 def _build_corpus(db_path):
     """
     Read every chunk once and build both the BM25 inverted index and a
     stacked NumPy matrix of embeddings, so a single DB read serves both
     search branches.
+
+    A fresh container (or a deleted data/ folder) has no database or no
+    `chunks` table yet; that returns an empty corpus instead of crashing,
+    so the UI still loads and the user can click Refresh Index.
     """
+    if not os.path.exists(db_path):
+        return _empty_corpus()
+
     conn = sqlite3.connect(db_path)
-    rows = conn.execute("SELECT id, stemmed_tokens, embedding_vector FROM chunks").fetchall()
-    conn.close()
+    try:
+        rows = conn.execute("SELECT id, stemmed_tokens, embedding_vector FROM chunks").fetchall()
+    except sqlite3.OperationalError:
+        return _empty_corpus()
+    finally:
+        conn.close()
 
     index = {}          # {stem: {chunk_id: term_frequency}}
     doc_lengths = {}     # {chunk_id: token_count}
@@ -81,7 +159,7 @@ def _build_corpus(db_path):
     embedding_rows = []
 
     for chunk_id, stemmed_tokens, blob in rows:
-        tokens = stemmed_tokens.split()
+        tokens = (stemmed_tokens or "").split()
         doc_lengths[chunk_id] = len(tokens)
         for token in tokens:
             index.setdefault(token, {})
@@ -125,6 +203,16 @@ def _get_corpus(db_path):
     return corpus
 
 
+def corpus_stats(db_path=DB_PATH):
+    """Small summary for the /api/status endpoint."""
+    corpus = _get_corpus(db_path)
+    return {"chunks": corpus["N"], "chunks_with_embeddings": len(corpus["embedding_ids"])}
+
+
+# ---------------------------------------------------------------------------
+# Scoring branches
+# ---------------------------------------------------------------------------
+
 def bm25_search(query_tokens, db_path=DB_PATH):
     """
     Score every chunk against query_tokens using Okapi BM25, reading the
@@ -137,7 +225,7 @@ def bm25_search(query_tokens, db_path=DB_PATH):
     avg_doc_length = corpus["avg_doc_length"]
     N = corpus["N"]
 
-    if N == 0:
+    if N == 0 or avg_doc_length == 0:
         return {}
 
     scores = {}
@@ -172,6 +260,10 @@ def vector_search(query_vector, db_path=DB_PATH):
         return {}
 
     q = np.array(query_vector, dtype=np.float32)
+    if q.shape[0] != embedding_matrix.shape[1]:
+        # e.g. the model was changed since the index was built -- vectors aren't comparable.
+        return {}
+
     q_norm = np.linalg.norm(q)
     if q_norm == 0:
         return {}
@@ -244,20 +336,26 @@ def _fetch_chunk_records(chunk_ids, db_path=DB_PATH):
         return []
 
     conn = sqlite3.connect(db_path)
-    placeholders = ",".join("?" * len(chunk_ids))
-    rows = conn.execute(
-        f"""
-        SELECT chunks.id, chunks.raw_text, documents.file_path
-        FROM chunks JOIN documents ON chunks.document_id = documents.id
-        WHERE chunks.id IN ({placeholders})
-        """,
-        chunk_ids,
-    ).fetchall()
-    conn.close()
+    try:
+        placeholders = ",".join("?" * len(chunk_ids))
+        rows = conn.execute(
+            f"""
+            SELECT chunks.id, chunks.raw_text, documents.file_path
+            FROM chunks JOIN documents ON chunks.document_id = documents.id
+            WHERE chunks.id IN ({placeholders})
+            """,
+            chunk_ids,
+        ).fetchall()
+    finally:
+        conn.close()
 
     by_id = {row[0]: {"id": row[0], "raw_text": row[1], "file_path": row[2]} for row in rows}
     return [by_id[cid] for cid in chunk_ids if cid in by_id]
 
+
+# ---------------------------------------------------------------------------
+# Public entry point
+# ---------------------------------------------------------------------------
 
 def search(query, top_n=MAX_RESULTS_CAP, db_path=DB_PATH,
            relative_threshold=RELATIVE_THRESHOLD_RATIO):
@@ -266,34 +364,60 @@ def search(query, top_n=MAX_RESULTS_CAP, db_path=DB_PATH,
     blend scores, apply the relative-threshold cutoff, and return the
     ranked chunk records.
 
+    Each record contains:
+        id, raw_text, file_path
+        score          blended final score (0.4 * bm25_score + 0.6 * cosine_score)
+        bm25_score     normalized [0, 1] keyword component
+        cosine_score   normalized [0, 1] vector component
+        bm25_raw       raw Okapi BM25 score (0.0 if no keyword overlap)
+        cosine_raw     raw cosine similarity (None in keyword-only mode)
+        mode           "hybrid" or "keyword" (keyword = Ollama fallback)
+
     Falls back to keyword-only (BM25) results if Ollama is unreachable,
     per the "Graceful Fallback" mitigation in cosi_design_doc.md Section 6.
     """
     query_tokens = tokenize_and_stem_query(query)
     bm25_scores = bm25_search(query_tokens, db_path=db_path)
 
-    query_vector = get_embedding(query)
+    query_vector = None
+    if check_ollama()["ok"]:
+        query_vector = get_embedding(query)
+        if not query_vector:
+            _mark_ollama_down("embedding request failed during search")
+            query_vector = None
+
     cosine_scores = vector_search(query_vector, db_path=db_path) if query_vector else {}
+    mode = "hybrid" if cosine_scores else "keyword"
 
     ranked = blend_scores(bm25_scores, cosine_scores)
     ranked = _apply_relative_threshold(ranked, ratio=relative_threshold, hard_cap=top_n)
 
     ranked_ids = [chunk_id for chunk_id, _score in ranked]
     score_by_id = dict(ranked)
+    bm25_norm = normalize_scores(bm25_scores)
+    cosine_norm = normalize_scores(cosine_scores)
 
     records = _fetch_chunk_records(ranked_ids, db_path=db_path)
     for record in records:
-        record["score"] = round(score_by_id[record["id"]], 4)
+        cid = record["id"]
+        record["score"] = round(score_by_id[cid], 4)
+        record["bm25_score"] = round(bm25_norm.get(cid, 0.0), 4)
+        record["cosine_score"] = round(cosine_norm.get(cid, 0.0), 4)
+        record["bm25_raw"] = round(bm25_scores.get(cid, 0.0), 4)
+        record["cosine_raw"] = round(cosine_scores[cid], 4) if cid in cosine_scores else None
+        record["mode"] = mode
 
     return records
 
 
 if __name__ == "__main__":
     # Simple CLI test harness per Sprint 2 task list.
+    status = check_ollama(force=True)
+    print(f"[cosi] {'hybrid' if status['ok'] else 'keyword-only'} mode: {status['reason']}")
     user_query = input("cosi search> ")
     results = search(user_query)
     if not results:
         print("No results.")
     for i, r in enumerate(results, 1):
-        print(f"{i}. [{r['score']}] {r['file_path']}")
+        print(f"{i}. [{r['score']}  bm25={r['bm25_score']}  cos={r['cosine_score']}] {r['file_path']}")
         print(f"   {r['raw_text'][:100]}...")

@@ -1,8 +1,8 @@
 # requirements.txt
 # Core dependencies per cosi_design_doc.md and README.md tech stack.
+# Lower bounds chosen so pip gets prebuilt wheels on Python 3.13 (the Docker base image).
+# HTTP calls to Ollama use the standard library's urllib, so `requests` isn't needed.
 
-flask
-nltk
-numpy
-# requests is optional -- test_ollama.py / offline_ingest.py currently use urllib
-# to avoid an extra dependency; swap in `requests` here if that changes.
+flask>=3.0
+nltk>=3.9
+numpy>=2.1
