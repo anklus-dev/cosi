@@ -16,17 +16,48 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+function fmtScore(value) {
+    return typeof value === "number" ? value.toFixed(2) : "–";
+}
+
+const modeStatusEl = document.getElementById("mode-status");
+
+// Shows whether search is using both branches or has fallen back to keyword-only.
+function updateModeStatus() {
+    fetch("/api/status")
+        .then((res) => res.json())
+        .then((s) => {
+            const chunks = s.index ? s.index.chunks : 0;
+            if (s.mode === "hybrid") {
+                modeStatusEl.textContent = `Hybrid search · ${chunks} passages indexed`;
+                modeStatusEl.className = "mode-status is-hybrid";
+            } else {
+                modeStatusEl.textContent = `Keyword-only search (Ollama unavailable) · ${chunks} passages indexed`;
+                modeStatusEl.className = "mode-status is-keyword";
+                modeStatusEl.title = s.ollama ? s.ollama.reason : "";
+            }
+        })
+        .catch(() => { modeStatusEl.textContent = ""; });
+}
+
 function escapeRegex(text) {
     return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// Wraps every occurrence of any word from `query` in <mark> tags. Operates on
-// already-HTML-escaped text so this only ever inserts safe, known markup.
+const HIGHLIGHT_SKIP = new Set(
+    "a an the and or of to in on at for with by from is are was be it its this that i me my we you your how what where when which who why can do does did not no so as".split(" ")
+);
+
+// Wraps whole words that start with a query word in <mark> tags ("bitter" also marks
+// "bitterness"), skipping filler words so "the" doesn't light up the whole passage.
+// Operates on already-HTML-escaped text so this only ever inserts safe, known markup.
 function highlightMatches(escapedText, query) {
-    const words = [...new Set(query.toLowerCase().split(/\s+/).filter(Boolean))];
+    const words = [...new Set(
+        query.toLowerCase().match(/[\p{L}\p{N}]+/gu) || []
+    )].filter((w) => w.length > 1 && !HIGHLIGHT_SKIP.has(w));
     if (words.length === 0) return escapedText;
 
-    const pattern = new RegExp(`(${words.map(escapeRegex).join("|")})`, "gi");
+    const pattern = new RegExp(`(?<![\\p{L}\\p{N}])((?:${words.map(escapeRegex).join("|")})[\\p{L}\\p{N}]*)`, "giu");
     return escapedText.replace(pattern, "<mark>$1</mark>");
 }
 
@@ -47,6 +78,9 @@ function renderResults(results, query) {
 
         const safeText = highlightMatches(escapeHtml(r.raw_text), query);
         const scorePercent = Math.max(0, Math.min(1, r.score)) * 100;
+        const breakdown = r.mode === "hybrid"
+            ? `keyword ${fmtScore(r.bm25_score)} × 0.4 &nbsp;+&nbsp; meaning ${fmtScore(r.cosine_score)} × 0.6`
+            : `keyword ${fmtScore(r.bm25_score)} (keyword-only mode)`;
 
         card.innerHTML = `
             <div class="result-body">
@@ -60,6 +94,7 @@ function renderResults(results, query) {
                     </span>
                 </div>
                 <div class="result-text">${safeText}</div>
+                <div class="score-breakdown" title="Normalized BM25 (keyword) and cosine-similarity (meaning) scores">${breakdown}</div>
             </div>
         `;
         resultsEl.appendChild(card);
@@ -101,13 +136,20 @@ refreshBtn.addEventListener("click", () => {
             const parts = [];
             if (stats.files_indexed > 0) {
                 parts.push(`Indexed ${stats.files_indexed} file(s), ${stats.chunks_indexed} chunk(s).`);
-            } else {
+            } else if (!stats.files_removed) {
                 parts.push("Index already up to date.");
+            }
+            if (stats.files_removed > 0) {
+                parts.push(`Removed ${stats.files_removed} deleted file(s).`);
             }
             if (stats.unsupported_files && stats.unsupported_files.length > 0) {
                 parts.push(`Skipped ${stats.unsupported_files.length} unsupported file(s) (not .md).`);
             }
+            if (stats.warning) {
+                parts.push(stats.warning);
+            }
             refreshStatusEl.textContent = parts.join(" ");
+            updateModeStatus();
         })
         .catch((err) => {
             refreshBtn.textContent = "Refresh index";
@@ -115,3 +157,5 @@ refreshBtn.addEventListener("click", () => {
             refreshStatusEl.textContent = `Refresh failed: ${err}`;
         });
 });
+
+updateModeStatus();

@@ -15,6 +15,7 @@ Variables (all optional):
                          Docker (Mac/Windows): http://host.docker.internal:11434
     COSI_EMBED_MODEL     Embedding model name. Default: nomic-embed-text
     COSI_OLLAMA_TIMEOUT  Seconds to wait for an embedding response. Default: 30
+    COSI_NOTES_DIR       Folder of .md notes to index. Default: ./notes
     COSI_BIND            Address Flask listens on. Default: 0.0.0.0
     COSI_PORT            Port Flask listens on. Default: 8000
     COSI_DEBUG           "1" enables Flask debug mode (never in containers). Default: 0
@@ -42,6 +43,10 @@ TAGS_URL = f"{OLLAMA_URL}/api/tags"
 OLLAMA_TIMEOUT = float(os.environ.get("COSI_OLLAMA_TIMEOUT", "30"))
 OLLAMA_PING_TIMEOUT = 2.0      # startup / health ping should fail fast
 OLLAMA_STATUS_TTL = 30.0       # seconds to trust a cached up/down result
+
+# Folder of notes to index. Default: ./notes next to the code. Point it elsewhere to
+# switch datasets, e.g. COSI_NOTES_DIR=datasets/meditations python app.py
+NOTES_DIR_OVERRIDE = os.environ.get("COSI_NOTES_DIR") or None
 
 BIND_HOST = os.environ.get("COSI_BIND", "0.0.0.0")
 PORT = int(os.environ.get("COSI_PORT", "8000"))

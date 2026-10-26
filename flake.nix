@@ -15,6 +15,10 @@
             flask
             numpy
             nltk
+            pytest
+            python-pptx   # poster/build_poster.py
+            qrcode
+            pillow
           ]))
         ];
 
@@ -23,6 +27,8 @@
           echo "  python3 offline_ingest.py"
           echo "  python3 cosi_engine.py"
           echo "  python3 app.py"
+          echo "  python3 -m pytest tests/"
+          echo "  python3 eval/run_eval.py"
         '';
       };
     };

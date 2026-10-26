@@ -119,8 +119,50 @@ All settings are environment variables (see `config.py`):
 | `COSI_OLLAMA_URL` | `http://localhost:11434` (container: `http://host.docker.internal:11434`) | Where Ollama is reachable |
 | `COSI_EMBED_MODEL` | `nomic-embed-text` | Embedding model |
 | `COSI_OLLAMA_TIMEOUT` | `30` | Seconds to wait for an embedding |
+| `COSI_NOTES_DIR` | `./notes` | Folder of `.md` notes to index |
 | `COSI_BIND` / `COSI_PORT` | `0.0.0.0` / `8000` | Web server address |
 | `COSI_DEBUG` | `0` | `1` enables Flask debug mode (local development only) |
+
+---
+
+## Datasets
+
+- `notes/`: six short travel notes (the default).
+- `datasets/meditations/`: Marcus Aurelius' *Meditations* (Meric Casaubon's translation, public domain, Project Gutenberg eBook #2680), one file per book, each passage labeled with its traditional number (e.g. `VIII.48`). Rebuild it from the source text with:
+
+  ```bash
+  python tools/prepare_meditations.py datasets/sources/pg2680.txt --out datasets/meditations
+  ```
+
+To search the Meditations instead of the travel notes:
+
+```bash
+COSI_NOTES_DIR=datasets/meditations python app.py       # then click Refresh Index
+```
+
+With Docker, mount it as the notes folder instead: change `./notes:/app/notes` to `./datasets/meditations:/app/notes` in `docker-compose.yml`.
+
+## Evaluation
+
+`eval/run_eval.py` measures how often each search method puts the right passage at the top, using hand-labeled questions (`eval/queries_travel.json`, `eval/queries_meditations.json`). It builds its own temporary index, so `data/cosi.db` is never touched. With Ollama running:
+
+```bash
+python eval/run_eval.py                                            # travel notes
+python eval/run_eval.py --notes datasets/meditations \
+       --queries eval/queries_meditations.json --chunkers hard,sentence
+```
+
+It compares keyword-only (BM25), meaning-only (cosine) and cosi's blend, sweeps the blend weight from 0 to 1, compares plain and `search_document:`/`search_query:`-prefixed embeddings, and runs a significance test. Results go to `eval/results/<dataset>/` (`summary.md`, `summary.json`, `per_query.csv`). `--no-embed` runs the keyword branch only, without Ollama.
+
+## Tests
+
+```bash
+python -m pytest tests/
+```
+
+## Poster
+
+`poster/build_poster.py` fills the GSU poster template (`poster/template.pptx`) from the evaluation results and writes `poster/cosi_poster.pptx`. Run the evaluation first; anything still missing appears as an orange `[pending: ...]` marker. Fonts: Oswald and Fira Sans (free Google fonts).
 
 ---
 

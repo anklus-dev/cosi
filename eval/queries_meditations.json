@@ -1,0 +1,450 @@
+{
+ "name": "meditations",
+ "description": "Relevance-labeled queries for Marcus Aurelius' Meditations (Casaubon translation, Project Gutenberg #2680), prepared with tools/prepare_meditations.py. 'paraphrase' queries are modern-English questions about an idea in the passage; 'keyword' queries reuse distinctive words from it. Labels name one or two passages each; other passages may also be relevant, so absolute scores are conservative, but every method is judged against the same labels.",
+ "queries": [
+  {
+   "id": "p01",
+   "category": "paraphrase",
+   "query": "how do I deal with the annoying people I will meet today",
+   "relevant": [
+    {
+     "file": "book_01.md",
+     "passage": "I.15"
+    }
+   ]
+  },
+  {
+   "id": "p02",
+   "category": "paraphrase",
+   "query": "I don't want to get out of bed in the morning",
+   "relevant": [
+    {
+     "file": "book_05.md",
+     "passage": "V.1"
+    }
+   ]
+  },
+  {
+   "id": "p03",
+   "category": "paraphrase",
+   "query": "you can find peace by looking inward instead of taking a vacation",
+   "relevant": [
+    {
+     "file": "book_04.md",
+     "passage": "IV.3"
+    }
+   ]
+  },
+  {
+   "id": "p04",
+   "category": "paraphrase",
+   "query": "if something unpleasant is in your path, just step around it and move on",
+   "relevant": [
+    {
+     "file": "book_08.md",
+     "passage": "VIII.48"
+    }
+   ]
+  },
+  {
+   "id": "p05",
+   "category": "paraphrase",
+   "query": "death makes a king and his servant equal",
+   "relevant": [
+    {
+     "file": "book_06.md",
+     "passage": "VI.22"
+    }
+   ]
+  },
+  {
+   "id": "p06",
+   "category": "paraphrase",
+   "query": "how should I get back at someone who wronged me",
+   "relevant": [
+    {
+     "file": "book_06.md",
+     "passage": "VI.5"
+    }
+   ]
+  },
+  {
+   "id": "p07",
+   "category": "paraphrase",
+   "query": "life is more like a fight than a performance",
+   "relevant": [
+    {
+     "file": "book_07.md",
+     "passage": "VII.33"
+    }
+   ]
+  },
+  {
+   "id": "p08",
+   "category": "paraphrase",
+   "query": "being remembered after you die doesn't really matter",
+   "relevant": [
+    {
+     "file": "book_04.md",
+     "passage": "IV.16"
+    },
+    {
+     "file": "book_02.md",
+     "passage": "II.15"
+    }
+   ]
+  },
+  {
+   "id": "p09",
+   "category": "paraphrase",
+   "query": "be good no matter what people say, like a jewel that keeps its color",
+   "relevant": [
+    {
+     "file": "book_07.md",
+     "passage": "VII.12"
+    }
+   ]
+  },
+  {
+   "id": "p10",
+   "category": "paraphrase",
+   "query": "helping others without expecting anything back",
+   "relevant": [
+    {
+     "file": "book_05.md",
+     "passage": "V.6"
+    }
+   ]
+  },
+  {
+   "id": "p11",
+   "category": "paraphrase",
+   "query": "even everyday comforts look disgusting when you describe them plainly",
+   "relevant": [
+    {
+     "file": "book_08.md",
+     "passage": "VIII.23"
+    }
+   ]
+  },
+  {
+   "id": "p12",
+   "category": "paraphrase",
+   "query": "I'm too busy to study, so what can I still work on",
+   "relevant": [
+    {
+     "file": "book_08.md",
+     "passage": "VIII.7"
+    }
+   ]
+  },
+  {
+   "id": "p13",
+   "category": "paraphrase",
+   "query": "other people can block my plans but not my mind",
+   "relevant": [
+    {
+     "file": "book_05.md",
+     "passage": "V.17"
+    }
+   ]
+  },
+  {
+   "id": "p14",
+   "category": "paraphrase",
+   "query": "whole continents are tiny compared to the universe",
+   "relevant": [
+    {
+     "file": "book_06.md",
+     "passage": "VI.33"
+    }
+   ]
+  },
+  {
+   "id": "p15",
+   "category": "paraphrase",
+   "query": "living longer won't show you anything new because history repeats",
+   "relevant": [
+    {
+     "file": "book_07.md",
+     "passage": "VII.27"
+    }
+   ]
+  },
+  {
+   "id": "p16",
+   "category": "paraphrase",
+   "query": "your body is just a corpse that your spirit hauls around",
+   "relevant": [
+    {
+     "file": "book_04.md",
+     "passage": "IV.34"
+    }
+   ]
+  },
+  {
+   "id": "p17",
+   "category": "paraphrase",
+   "query": "it's fine if your life ends early, like leaving a show before the final scene",
+   "relevant": [
+    {
+     "file": "book_12.md",
+     "passage": "XII.27"
+    }
+   ]
+  },
+  {
+   "id": "p18",
+   "category": "paraphrase",
+   "query": "stop dwelling on the past and live rightly now",
+   "relevant": [
+    {
+     "file": "book_12.md",
+     "passage": "XII.1"
+    }
+   ]
+  },
+  {
+   "id": "p19",
+   "category": "paraphrase",
+   "query": "a mentor who taught me to write simply and forgive quickly",
+   "relevant": [
+    {
+     "file": "book_01.md",
+     "passage": "I.4"
+    }
+   ]
+  },
+  {
+   "id": "p20",
+   "category": "paraphrase",
+   "query": "staying the same person even after a child dies",
+   "relevant": [
+    {
+     "file": "book_01.md",
+     "passage": "I.5"
+    }
+   ]
+  },
+  {
+   "id": "p21",
+   "category": "paraphrase",
+   "query": "treat every task as if it were the final thing you'll ever do",
+   "relevant": [
+    {
+     "file": "book_02.md",
+     "passage": "II.2"
+    }
+   ]
+  },
+  {
+   "id": "p22",
+   "category": "paraphrase",
+   "query": "first thing after waking, ask whether others' praise really matters",
+   "relevant": [
+    {
+     "file": "book_10.md",
+     "passage": "X.15"
+    }
+   ]
+  },
+  {
+   "id": "p23",
+   "category": "paraphrase",
+   "query": "nothing lasts except the study of wisdom",
+   "relevant": [
+    {
+     "file": "book_02.md",
+     "passage": "II.15"
+    }
+   ]
+  },
+  {
+   "id": "p24",
+   "category": "paraphrase",
+   "query": "looking at the stars at dawn to remember order and simplicity",
+   "relevant": [
+    {
+     "file": "book_11.md",
+     "passage": "XI.25"
+    }
+   ]
+  },
+  {
+   "id": "k01",
+   "category": "keyword",
+   "query": "cucumber brambles",
+   "relevant": [
+    {
+     "file": "book_08.md",
+     "passage": "VIII.48"
+    }
+   ]
+  },
+  {
+   "id": "k02",
+   "category": "keyword",
+   "query": "Alexander of Macedon mules",
+   "relevant": [
+    {
+     "file": "book_06.md",
+     "passage": "VI.22"
+    }
+   ]
+  },
+  {
+   "id": "k03",
+   "category": "keyword",
+   "query": "Mount Athos Asia Europe",
+   "relevant": [
+    {
+     "file": "book_06.md",
+     "passage": "VI.33"
+    }
+   ]
+  },
+  {
+   "id": "k04",
+   "category": "keyword",
+   "query": "Epictetus carcass",
+   "relevant": [
+    {
+     "file": "book_04.md",
+     "passage": "IV.34"
+    }
+   ]
+  },
+  {
+   "id": "k05",
+   "category": "keyword",
+   "query": "Pythagoreans heavens",
+   "relevant": [
+    {
+     "file": "book_11.md",
+     "passage": "XI.25"
+    }
+   ]
+  },
+  {
+   "id": "k06",
+   "category": "keyword",
+   "query": "Heraclitus death of earth is water",
+   "relevant": [
+    {
+     "file": "book_04.md",
+     "passage": "IV.37"
+    }
+   ]
+  },
+  {
+   "id": "k07",
+   "category": "keyword",
+   "query": "emerald colour",
+   "relevant": [
+    {
+     "file": "book_07.md",
+     "passage": "VII.12"
+    }
+   ]
+  },
+  {
+   "id": "k08",
+   "category": "keyword",
+   "query": "wrestler dancer",
+   "relevant": [
+    {
+     "file": "book_07.md",
+     "passage": "VII.33"
+    }
+   ]
+  },
+  {
+   "id": "k09",
+   "category": "keyword",
+   "query": "bathing oil sweat filth",
+   "relevant": [
+    {
+     "file": "book_08.md",
+     "passage": "VIII.23"
+    }
+   ]
+  },
+  {
+   "id": "k10",
+   "category": "keyword",
+   "query": "disciple of Antoninus Pius",
+   "relevant": [
+    {
+     "file": "book_06.md",
+     "passage": "VI.28"
+    }
+   ]
+  },
+  {
+   "id": "k11",
+   "category": "keyword",
+   "query": "Quadi at Granua",
+   "relevant": [
+    {
+     "file": "book_01.md",
+     "passage": "I.15"
+    }
+   ]
+  },
+  {
+   "id": "k12",
+   "category": "keyword",
+   "query": "vine grapes horse hunting dog bee",
+   "relevant": [
+    {
+     "file": "book_05.md",
+     "passage": "V.6"
+    }
+   ]
+  },
+  {
+   "id": "k13",
+   "category": "keyword",
+   "query": "three acts of the play",
+   "relevant": [
+    {
+     "file": "book_12.md",
+     "passage": "XII.27"
+    }
+   ]
+  },
+  {
+   "id": "k14",
+   "category": "keyword",
+   "query": "forty years ten thousand years spectator",
+   "relevant": [
+    {
+     "file": "book_07.md",
+     "passage": "VII.27"
+    }
+   ]
+  },
+  {
+   "id": "k15",
+   "category": "keyword",
+   "query": "Rusticus Epictetus Hypomnemata",
+   "relevant": [
+    {
+     "file": "book_01.md",
+     "passage": "I.4"
+    }
+   ]
+  },
+  {
+   "id": "k16",
+   "category": "keyword",
+   "query": "best kind of revenge",
+   "relevant": [
+    {
+     "file": "book_06.md",
+     "passage": "VI.5"
+    }
+   ]
+  }
+ ]
+}

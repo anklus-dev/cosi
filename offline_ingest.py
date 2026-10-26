@@ -44,17 +44,19 @@ import urllib.request
 
 from nltk.stem import PorterStemmer
 
-from config import EMBED_MODEL, EMBED_URL, OLLAMA_PING_TIMEOUT, OLLAMA_TIMEOUT, OLLAMA_URL, TAGS_URL
+from config import EMBED_MODEL, EMBED_URL, NOTES_DIR_OVERRIDE, OLLAMA_PING_TIMEOUT, OLLAMA_TIMEOUT, OLLAMA_URL, TAGS_URL
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "data", "cosi.db")
-NOTES_DIR = os.path.join(BASE_DIR, "notes")
+NOTES_DIR = os.path.abspath(NOTES_DIR_OVERRIDE) if NOTES_DIR_OVERRIDE else os.path.join(BASE_DIR, "notes")
 
 # Kept for backwards compatibility with anything that imported the old constant.
 OLLAMA_EMBED_URL = EMBED_URL
 
 MIN_CHUNK_CHARS = 150
 MAX_CHUNK_CHARS = 500
+CHUNK_MODE = "sentence"   # or "hard" for the original fixed-width cut
+SENTENCE_BOUNDARY = re.compile(r"(?<=[.?!;:])\s+")
 
 _stemmer = PorterStemmer()
 
@@ -148,17 +150,79 @@ def _documents_missing_embeddings(conn):
     return {row[0] for row in rows}
 
 
-def chunk_text(raw_text):
+def _split_long_paragraph(paragraph, max_chars=MAX_CHUNK_CHARS):
+    """
+    Split a paragraph longer than max_chars into pieces that end on sentence
+    boundaries (. ? ! ; :), packing as many whole sentences as fit. A single
+    sentence longer than max_chars is split at the last space before the limit,
+    so no word is ever cut in half.
+    """
+    sentences = [s for s in SENTENCE_BOUNDARY.split(paragraph) if s]
+    pieces = []
+    current = ""
+    for sentence in sentences:
+        while len(sentence) > max_chars:  # one enormous sentence: fall back to word boundary
+            cut = sentence.rfind(" ", 0, max_chars)
+            cut = cut if cut > 0 else max_chars
+            if current:
+                pieces.append(current)
+                current = ""
+            pieces.append(sentence[:cut].strip())
+            sentence = sentence[cut:].strip()
+        candidate = f"{current} {sentence}".strip()
+        if len(candidate) <= max_chars:
+            current = candidate
+        else:
+            pieces.append(current)
+            current = sentence
+    if current:
+        pieces.append(current)
+    return pieces
+
+
+def chunk_text(raw_text, mode=None):
     """
     Split raw markdown text on double-newlines into paragraph-sized chunks,
     keeping each chunk between MIN_CHUNK_CHARS and MAX_CHUNK_CHARS to avoid
     concept dilution (see cosi_design_doc.md Section 6: Semantic Dilution risk).
 
     - Short adjacent paragraphs are merged together until they clear MIN_CHUNK_CHARS.
-    - Paragraphs longer than MAX_CHUNK_CHARS are hard-split on that boundary.
+    - mode "sentence" (default): paragraphs longer than MAX_CHUNK_CHARS are split
+      on sentence boundaries, so no chunk ends mid-sentence or mid-word.
+    - mode "hard": the original behaviour -- cut every MAX_CHUNK_CHARS characters.
+      Kept so eval/run_eval.py can measure the difference.
     """
+    mode = mode or CHUNK_MODE
     paragraphs = [p.strip() for p in re.split(r"\n\s*\n", raw_text) if p.strip()]
+    if mode == "hard":
+        return _chunk_hard(paragraphs)
 
+    chunks = []
+    buffer = ""
+    for para in paragraphs:
+        para = re.sub(r"[ \t]*\n[ \t]*", " ", para) if len(para) > MAX_CHUNK_CHARS else para
+        pieces = _split_long_paragraph(para) if len(para) > MAX_CHUNK_CHARS else [para]
+        for piece in pieces:
+            # A leftover that is already a reasonable chunk is emitted on its own rather than
+            # pushing the next piece over the limit. A tiny leftover (a heading, a one-line
+            # passage) stays attached so it never becomes a context-free chunk by itself; that
+            # can exceed MAX_CHUNK_CHARS by less than MIN_CHUNK_CHARS.
+            if buffer and len(buffer) + 2 + len(piece) > MAX_CHUNK_CHARS and len(buffer) >= MIN_CHUNK_CHARS // 2:
+                chunks.append(buffer)
+                buffer = ""
+            buffer = f"{buffer}\n\n{piece}" if buffer else piece
+            if len(buffer) >= MIN_CHUNK_CHARS:
+                chunks.append(buffer)
+                buffer = ""
+
+    if buffer:
+        chunks.append(buffer)
+
+    return chunks
+
+
+def _chunk_hard(paragraphs):
+    """Original chunker: merge short paragraphs, hard-cut long ones every MAX_CHUNK_CHARS."""
     chunks = []
     buffer = ""
     for para in paragraphs:
