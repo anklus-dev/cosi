@@ -22,9 +22,6 @@ resources/
 *.docx
 local_search_engine.py
 eval/
-tools/
-poster/
-datasets/
 docker-compose*.yml
 Dockerfile
 .dockerignore

@@ -13,6 +13,5 @@ nltk_data/
 # Editor/OS cruft
 .DS_Store
 
-# Poster renders (rebuild with poster/build_poster.py)
-poster/*.pdf
-poster/*.png
+# Evaluation output (regenerate with eval/run_eval.py)
+eval/results/

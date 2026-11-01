@@ -19,6 +19,8 @@ services:
       # Docker Desktop defines host.docker.internal already; this adds it on Linux too.
       - "host.docker.internal:host-gateway"
     volumes:
-      - ./notes:/app/notes
+      # Folder to search. Default: ./notes. To search another folder:
+      #   COSI_NOTES=~/path/to/notes docker compose ... up --build
+      - ${COSI_NOTES:-./notes}:/app/notes
       - ./data:/app/data
     restart: unless-stopped

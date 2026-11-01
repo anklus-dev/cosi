@@ -18,7 +18,7 @@ What it does
            hybrid    alpha * BM25 + (1 - alpha) * cosine, both min-max normalized,
                      for alpha = 0.0, 0.1, ... 1.0  (cosi uses alpha = 0.4)
     3. Scores each ranking against the labels and writes:
-           summary.md     tables ready to copy onto a poster
+           summary.md     readable tables of the results
            summary.json   the same numbers, machine-readable
            per_query.csv  rank of the first relevant passage per query and method
 
@@ -39,15 +39,14 @@ Significance
 Labels
     Each query lists its relevant passages either by a text snippet
         {"file": "kyoto.md", "contains": "Fushimi Inari"}
-    or by passage number for datasets whose paragraphs start with one (Meditations)
+    or by passage number for notes whose paragraphs start with one ("II.4 ...")
         {"file": "book_08.md", "passage": "VIII.48"}
     A passage split across several chunks counts as found at the rank of its best chunk.
 
 Usage (from the project root, inside `nix develop`, with Ollama running)
-    python eval/run_eval.py                                   # travel notes, plain + prefixed
-    python eval/run_eval.py --notes datasets/meditations --queries eval/queries_meditations.json \
-                            --chunkers hard,sentence          # also compares the two chunkers
+    python eval/run_eval.py                                   # sample notes, plain + prefixed
     python eval/run_eval.py --variants plain                  # one embedding style only
+    python eval/run_eval.py --chunkers hard,sentence          # also compare the two chunkers
     python eval/run_eval.py --no-embed                        # BM25 only, no Ollama needed
 
 The weight sweep is tuned on the same queries it is scored on, so the "best alpha"
@@ -409,7 +408,7 @@ def main():
     ap = argparse.ArgumentParser(description="Evaluate cosi retrieval quality.")
     ap.add_argument("--notes", default=os.path.join(ROOT, "notes"), help="folder of .md notes to index")
     ap.add_argument("--queries", default=os.path.join(ROOT, "eval", "queries_travel.json"))
-    ap.add_argument("--out", default=None, help="output folder (default: eval/results/<query set>)")
+    ap.add_argument("--out", default=None, help="output folder (default: eval/results/)")
     ap.add_argument("--variants", default="plain,prefixed",
                     help="comma list of embedding styles: plain, prefixed (default: both)")
     ap.add_argument("--chunkers", default="sentence",
@@ -435,7 +434,7 @@ def main():
     variants = [(f"{style}/{chunker}", DOC_PREFIX if style == "prefixed" else "", chunker)
                 for chunker in chunkers for style in styles]
 
-    out_dir = args.out or os.path.join(ROOT, "eval", "results", meta.get("name", "queries"))
+    out_dir = args.out or os.path.join(ROOT, "eval", "results")
     workdir = tempfile.mkdtemp(prefix="cosi-eval-")
     try:
         results = [evaluate_variant(name, prefix, chunker, queries, args.notes, embed, workdir)

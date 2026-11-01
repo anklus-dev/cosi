@@ -45,7 +45,7 @@ OLLAMA_PING_TIMEOUT = 2.0      # startup / health ping should fail fast
 OLLAMA_STATUS_TTL = 30.0       # seconds to trust a cached up/down result
 
 # Folder of notes to index. Default: ./notes next to the code. Point it elsewhere to
-# switch datasets, e.g. COSI_NOTES_DIR=datasets/meditations python app.py
+# search your own notes, e.g. COSI_NOTES_DIR=~/notes python app.py
 NOTES_DIR_OVERRIDE = os.environ.get("COSI_NOTES_DIR") or None
 
 BIND_HOST = os.environ.get("COSI_BIND", "0.0.0.0")

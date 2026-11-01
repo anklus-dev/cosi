@@ -12,7 +12,7 @@ Responsibilities:
     2. Vector Branch: embed the query via Ollama (offline_ingest.get_embedding),
        load cached chunk vectors from SQLite, and compute Cosine Similarity with NumPy.
     3. Score Blender: normalize both score arrays to [0, 1] and combine:
-           Final Score = (0.4 * BM25) + (0.6 * Cosine Similarity)
+           Final Score = (0.2 * BM25) + (0.8 * Cosine Similarity)
     4. Return the ranked chunks (source file, raw text, blended score, and the
        BM25 / cosine component scores) for consumption by app.py.
 
@@ -44,8 +44,8 @@ from nltk.stem import PorterStemmer
 from config import EMBED_MODEL, OLLAMA_PING_TIMEOUT, OLLAMA_STATUS_TTL, OLLAMA_URL, TAGS_URL
 from offline_ingest import DB_PATH, blob_to_vector, get_embedding
 
-BM25_WEIGHT = 0.4
-COSINE_WEIGHT = 0.6
+BM25_WEIGHT = 0.2
+COSINE_WEIGHT = 0.8
 
 # BM25 tuning parameters (matching local_search_engine.py's defaults)
 BM25_B = 0.75
@@ -294,7 +294,7 @@ def normalize_scores(scores_dict):
 def blend_scores(bm25_scores, cosine_scores):
     """
     Combine normalized BM25 and cosine score dicts into a single ranked list
-    using Final Score = (0.4 * BM25) + (0.6 * Cosine Similarity).
+    using Final Score = (0.2 * BM25) + (0.8 * Cosine Similarity).
     Returns a list of (chunk_id, final_score) sorted descending.
     """
     bm25_norm = normalize_scores(bm25_scores)
@@ -366,7 +366,7 @@ def search(query, top_n=MAX_RESULTS_CAP, db_path=DB_PATH,
 
     Each record contains:
         id, raw_text, file_path
-        score          blended final score (0.4 * bm25_score + 0.6 * cosine_score)
+        score          blended final score (0.2 * bm25_score + 0.8 * cosine_score)
         bm25_score     normalized [0, 1] keyword component
         cosine_score   normalized [0, 1] vector component
         bm25_raw       raw Okapi BM25 score (0.0 if no keyword overlap)

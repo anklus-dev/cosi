@@ -97,6 +97,8 @@ The Linux variant uses host networking, because Ollama on Linux only listens on 
 
 Your notes folder (`./notes`) and the index (`./data/cosi.db`) are mounted into the container, so edits to your notes are visible after a refresh and the index survives restarts.
 
+The code, page templates and styles are copied into the image when it is built, so after changing any `.py`, `.html`, `.css` or `.js` file, start with `--build` to see the change. Note changes only need **Refresh Index**.
+
 ### Checking the connection
 
 - <http://localhost:8000/api/status> shows whether search is running in `hybrid` or `keyword` mode, and why.
@@ -125,34 +127,31 @@ All settings are environment variables (see `config.py`):
 
 ---
 
-## Datasets
+## Searching your own notes
 
-- `notes/`: six short travel notes (the default).
-- `datasets/meditations/`: Marcus Aurelius' *Meditations* (Meric Casaubon's translation, public domain, Project Gutenberg eBook #2680), one file per book, each passage labeled with its traditional number (e.g. `VIII.48`). Rebuild it from the source text with:
-
-  ```bash
-  python tools/prepare_meditations.py datasets/sources/pg2680.txt --out datasets/meditations
-  ```
-
-To search the Meditations instead of the travel notes:
+cosi indexes every `.md` file in a folder (subfolders included). The default is `notes/`, which holds six short sample travel notes. To search a different folder:
 
 ```bash
-COSI_NOTES_DIR=datasets/meditations python app.py       # then click Refresh Index
+COSI_NOTES_DIR=~/path/to/notes python app.py       # then click Refresh Index
 ```
 
-With Docker, mount it as the notes folder instead: change `./notes:/app/notes` to `./datasets/meditations:/app/notes` in `docker-compose.yml`.
+With Docker, set `COSI_NOTES` when starting:
+
+```bash
+COSI_NOTES=~/path/to/notes docker compose -f docker-compose.yml -f docker-compose.linux.yml up --build
+```
 
 ## Evaluation
 
-`eval/run_eval.py` measures how often each search method puts the right passage at the top, using hand-labeled questions (`eval/queries_travel.json`, `eval/queries_meditations.json`). It builds its own temporary index, so `data/cosi.db` is never touched. With Ollama running:
+`eval/run_eval.py` measures how often each search method puts the right passage first, using 44 hand-labeled questions about the sample notes (`eval/queries_travel.json`). It builds its own temporary index, so `data/cosi.db` is never touched. With Ollama running:
 
 ```bash
-python eval/run_eval.py                                            # travel notes
-python eval/run_eval.py --notes datasets/meditations \
-       --queries eval/queries_meditations.json --chunkers hard,sentence
+python eval/run_eval.py
 ```
 
-It compares keyword-only (BM25), meaning-only (cosine) and cosi's blend, sweeps the blend weight from 0 to 1, compares plain and `search_document:`/`search_query:`-prefixed embeddings, and runs a significance test. Results go to `eval/results/<dataset>/` (`summary.md`, `summary.json`, `per_query.csv`). `--no-embed` runs the keyword branch only, without Ollama.
+It compares keyword-only (BM25), meaning-only (cosine) and cosi's blend, tries every blend weight from 0 to 1, and checks whether differences are statistically significant. Results go to `eval/results/` (`summary.md`, `summary.json`, `per_query.csv`). `--no-embed` runs the keyword branch only, without Ollama.
+
+The 0.2 / 0.8 blend weight comes from this sweep: on the sample notes it scored slightly above meaning-only search (MRR 0.95 vs 0.94), while the original 0.4 / 0.6 scored below it.
 
 ## Tests
 
@@ -160,13 +159,11 @@ It compares keyword-only (BM25), meaning-only (cosine) and cosi's blend, sweeps 
 python -m pytest tests/
 ```
 
-## Poster
-
-`poster/build_poster.py` fills the GSU poster template (`poster/template.pptx`) from the evaluation results and writes `poster/cosi_poster.pptx`. Run the evaluation first; anything still missing appears as an orange `[pending: ...]` marker. Fonts: Oswald and Fira Sans (free Google fonts).
-
 ---
 
 ## Developer Log
 
 - **2026-08-29:** Initialized private Git repository. Verified professor's BM25 benchmark script running successfully on NixOS.
+- **2026-10:** Docker setup, configurable Ollama URL and notes folder, Ollama health check with keyword-only fallback, sentence-aware chunking, per-result score breakdown in the UI, unit tests.
+- **2026-11:** Added a retrieval evaluation; lowered the keyword weight in the blend from 0.4 to 0.2 based on it.
 

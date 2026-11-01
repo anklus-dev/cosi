@@ -16,9 +16,6 @@
             numpy
             nltk
             pytest
-            python-pptx   # poster/build_poster.py
-            qrcode
-            pillow
           ]))
         ];
 

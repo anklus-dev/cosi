@@ -79,7 +79,7 @@ function renderResults(results, query) {
         const safeText = highlightMatches(escapeHtml(r.raw_text), query);
         const scorePercent = Math.max(0, Math.min(1, r.score)) * 100;
         const breakdown = r.mode === "hybrid"
-            ? `keyword ${fmtScore(r.bm25_score)} × 0.4 &nbsp;+&nbsp; meaning ${fmtScore(r.cosine_score)} × 0.6`
+            ? `keyword ${fmtScore(r.bm25_score)} × 0.2 &nbsp;+&nbsp; meaning ${fmtScore(r.cosine_score)} × 0.8`
             : `keyword ${fmtScore(r.bm25_score)} (keyword-only mode)`;
 
         card.innerHTML = `
