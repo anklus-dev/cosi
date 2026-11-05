@@ -92,6 +92,8 @@ def startup_check():
     else:
         print(f"[cosi] WARNING: {status['reason']}")
         print("[cosi] Falling back to keyword-only (BM25) search until Ollama is available.")
+        print("[cosi] To enable meaning search: install Ollama from https://ollama.com/download,")
+        print("[cosi] run 'ollama pull nomic-embed-text', then click 'Refresh Index'.")
 
     if not os.path.exists(offline_ingest.DB_PATH):
         print("[cosi] No index found yet -- click 'Refresh Index' in the WebUI to build it.")

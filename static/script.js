@@ -21,8 +21,41 @@ function fmtScore(value) {
 }
 
 const modeStatusEl = document.getElementById("mode-status");
+const modeHintEl = document.getElementById("mode-hint");
+const OLLAMA_DOWNLOAD_URL = "https://ollama.com/download";
+const EMBED_MODEL = "nomic-embed-text";
+let modeRecheckTimer = null;
+
+// Builds the "how to turn on meaning search" hint with DOM nodes (no innerHTML),
+// since the reason text comes from an error message.
+function showOllamaHint(reason) {
+    modeHintEl.replaceChildren();
+    const add = (node) => modeHintEl.append(node);
+    const text = (t) => add(document.createTextNode(t));
+    const code = (t) => { const c = document.createElement("code"); c.textContent = t; add(c); };
+
+    if (reason && reason.includes("not pulled")) {
+        text("Ollama is running, but the embedding model is missing. Run ");
+        code(`ollama pull ${EMBED_MODEL}`);
+        text(", then click Refresh Index.");
+    } else {
+        text("To also search by meaning, install Ollama from ");
+        const a = document.createElement("a");
+        a.href = OLLAMA_DOWNLOAD_URL;
+        a.target = "_blank";
+        a.rel = "noopener";
+        a.textContent = "ollama.com/download";
+        add(a);
+        text(" (or start it, if it's already installed), run ");
+        code(`ollama pull ${EMBED_MODEL}`);
+        text(", then click Refresh Index. Keyword search works fine without it.");
+    }
+    modeHintEl.hidden = false;
+}
 
 // Shows whether search is using both branches or has fallen back to keyword-only.
+// While in keyword-only mode it re-checks every 30 s, so the page notices when
+// Ollama is started without needing a reload.
 function updateModeStatus() {
     fetch("/api/status")
         .then((res) => res.json())
@@ -31,10 +64,16 @@ function updateModeStatus() {
             if (s.mode === "hybrid") {
                 modeStatusEl.textContent = `Hybrid search · ${chunks} passages indexed`;
                 modeStatusEl.className = "mode-status is-hybrid";
+                modeStatusEl.title = "";
+                modeHintEl.hidden = true;
+                clearInterval(modeRecheckTimer);
+                modeRecheckTimer = null;
             } else {
-                modeStatusEl.textContent = `Keyword-only search (Ollama unavailable) · ${chunks} passages indexed`;
+                modeStatusEl.textContent = `Keyword-only search · ${chunks} passages indexed`;
                 modeStatusEl.className = "mode-status is-keyword";
                 modeStatusEl.title = s.ollama ? s.ollama.reason : "";
+                showOllamaHint(s.ollama ? s.ollama.reason : "");
+                if (!modeRecheckTimer) modeRecheckTimer = setInterval(updateModeStatus, 30000);
             }
         })
         .catch(() => { modeStatusEl.textContent = ""; });

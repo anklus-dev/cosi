@@ -71,7 +71,7 @@ ollama pull nomic-embed-text
 
 Make sure the Ollama server is running (the desktop app does this automatically; otherwise run `ollama serve`).
 
-> Ollama is optional. Without it, cosi still works in **keyword-only (BM25) mode** and prints a warning at startup.
+> Ollama is optional. Without it (not installed, or not running), cosi still works in **keyword-only (BM25) mode**: it prints a warning at startup, and the page shows a link to <https://ollama.com/download> plus the command to run. Once Ollama is running with the model pulled, click **Refresh Index** to add the meaning-search data; the page switches to hybrid mode on its own.
 
 ### 2. Start cosi
 

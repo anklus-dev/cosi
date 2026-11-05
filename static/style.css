@@ -273,6 +273,22 @@ main {
 .mode-status.is-hybrid::before { background: var(--accent-warm); }
 .mode-status.is-keyword::before { background: var(--danger); }
 
+.mode-hint {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin: 0.25rem 0 0;
+    line-height: 1.5;
+}
+
+.mode-hint a { color: var(--accent-warm); }
+
+.mode-hint code {
+    font-size: 0.75rem;
+    padding: 0.05rem 0.3rem;
+    border-radius: 4px;
+    background: rgba(127, 127, 127, 0.15);
+}
+
 .score-breakdown {
     margin-top: 0.45rem;
     font-size: 0.75rem;
