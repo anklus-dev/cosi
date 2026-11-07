@@ -44,7 +44,10 @@ import urllib.request
 
 from nltk.stem import PorterStemmer
 
-from config import EMBED_MODEL, EMBED_URL, NOTES_DIR_OVERRIDE, OLLAMA_PING_TIMEOUT, OLLAMA_TIMEOUT, OLLAMA_URL, TAGS_URL
+import time
+
+from config import (EMBED_BATCH_SIZE, EMBED_BATCH_URL, EMBED_MODEL, EMBED_URL, NOTES_DIR_OVERRIDE,
+                    OLLAMA_PING_TIMEOUT, OLLAMA_TIMEOUT, OLLAMA_URL, TAGS_URL)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "data", "cosi.db")
@@ -271,26 +274,92 @@ def ollama_available():
     return True, f"Ollama reachable at {OLLAMA_URL}"
 
 
-def get_embedding(text, model=EMBED_MODEL, url=EMBED_URL):
-    """
-    POST text to the Ollama embeddings endpoint and return the 768-float vector.
-    Returns None (instead of raising) if Ollama is unreachable or answers with
-    something unexpected, so callers can apply the graceful keyword-only fallback.
-    """
-    data = {"model": model, "prompt": text}
+# Set once we learn the Ollama server is too old for /api/embed (added in Ollama 0.3).
+_legacy_endpoint_only = False
+
+
+def _post_json(url, payload, timeout):
     req = urllib.request.Request(
         url,
-        data=json.dumps(data).encode("utf-8"),
+        data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json"},
         method="POST",
     )
+    with urllib.request.urlopen(req, timeout=timeout) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def _legacy_embedding(text, model=EMBED_MODEL):
+    """One text through the old /api/embeddings endpoint. Returns a vector or None."""
     try:
-        with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT) as response:
-            body = json.loads(response.read().decode("utf-8"))
-            return body.get("embedding") or None
+        body = _post_json(EMBED_URL, {"model": model, "prompt": text}, OLLAMA_TIMEOUT)
+        return body.get("embedding") or None
     except (OSError, ValueError) as e:  # URLError, HTTPError, timeouts, bad JSON
-        print(f"  [warn] Ollama embedding failed at {url} ({e}); storing chunk without embedding.")
+        print(f"  [warn] Ollama embedding failed at {EMBED_URL} ({e}); storing chunk without embedding.")
         return None
+
+
+def _batch_request(texts, model):
+    """One /api/embed call for a list of texts. Returns the list of vectors (raises on failure)."""
+    # A batch takes longer than a single text, especially on a CPU, so scale the timeout.
+    body = _post_json(EMBED_BATCH_URL, {"model": model, "input": list(texts)},
+                      OLLAMA_TIMEOUT + 2 * len(texts))
+    vectors = body.get("embeddings")
+    if not isinstance(vectors, list) or len(vectors) != len(texts):
+        raise ValueError(f"expected {len(texts)} embeddings, got {type(vectors).__name__}")
+    return vectors
+
+
+def get_embeddings(texts, model=EMBED_MODEL):
+    """
+    Embed a list of texts with as few Ollama requests as possible.
+
+    Sends the whole list to /api/embed in one request (callers keep lists to about
+    EMBED_BATCH_SIZE). Returns a list the same length as `texts`, holding a vector
+    or None for each text, so callers can apply the keyword-only fallback per chunk.
+
+    Fallbacks: an Ollama too old for /api/embed (HTTP 404) switches to the legacy
+    one-text-per-request endpoint for the rest of the run; a batch that Ollama
+    rejects for another reason is retried one text at a time; an unreachable
+    Ollama returns all None straight away.
+    """
+    global _legacy_endpoint_only
+    texts = list(texts)
+    if not texts:
+        return []
+    if not _legacy_endpoint_only:
+        try:
+            return _batch_request(texts, model)
+        except urllib.error.HTTPError as e:
+            if e.code == 404 and "model" not in _error_text(e):
+                print("  [info] this Ollama has no /api/embed; using the older one-at-a-time endpoint.")
+                _legacy_endpoint_only = True
+            elif len(texts) > 1:
+                print(f"  [warn] batch of {len(texts)} rejected by Ollama ({e}); retrying one at a time.")
+                return [get_embeddings([t], model)[0] for t in texts]
+            else:
+                print(f"  [warn] Ollama embedding failed at {EMBED_BATCH_URL} ({e}); storing chunk without embedding.")
+                return [None]
+        except (OSError, ValueError) as e:  # unreachable, timeout, malformed reply
+            print(f"  [warn] Ollama embedding failed at {EMBED_BATCH_URL} ({e}); storing chunk(s) without embeddings.")
+            return [None] * len(texts)
+    return [_legacy_embedding(t, model) for t in texts]
+
+
+def _error_text(http_error):
+    try:
+        return http_error.read().decode("utf-8", "replace").lower()
+    except Exception:
+        return ""
+
+
+def get_embedding(text, model=EMBED_MODEL):
+    """
+    Embed one text (used for search queries). Same endpoint as indexing, so a
+    query and the passages it is compared with are always embedded the same way.
+    Returns the vector, or None if Ollama is unreachable.
+    """
+    return get_embeddings([text], model)[0]
 
 
 def _vector_to_blob(vector):
@@ -306,6 +375,35 @@ def blob_to_vector(blob):
         return None
     count = len(blob) // 4
     return list(struct.unpack(f"{count}f", blob))
+
+
+def _store_document(conn, known, rel, file_hash, last_modified, chunks, vectors):
+    """
+    Upsert one note's document row, replace its chunks, and commit.
+    (Simplest correct approach: re-chunk the whole file on any change.)
+    """
+    if rel in known:
+        document_id = known[rel][0]
+        conn.execute(
+            "UPDATE documents SET file_hash = ?, last_modified = ? WHERE id = ?",
+            (file_hash, last_modified, document_id),
+        )
+        conn.execute("DELETE FROM chunks WHERE document_id = ?", (document_id,))
+    else:
+        cur = conn.execute(
+            "INSERT INTO documents (file_path, file_hash, last_modified) VALUES (?, ?, ?)",
+            (rel, file_hash, last_modified),
+        )
+        document_id = cur.lastrowid
+    conn.executemany(
+        """
+        INSERT INTO chunks (document_id, raw_text, stemmed_tokens, embedding_vector)
+        VALUES (?, ?, ?, ?)
+        """,
+        [(document_id, chunk, stem_chunk(chunk), _vector_to_blob(vector))
+         for chunk, vector in zip(chunks, vectors)],
+    )
+    conn.commit()
 
 
 def ingest(notes_dir=NOTES_DIR, db_path=DB_PATH):
@@ -333,79 +431,100 @@ def ingest(notes_dir=NOTES_DIR, db_path=DB_PATH):
             doc_id = known[rel][0]
             conn.execute("DELETE FROM chunks WHERE document_id = ?", (doc_id,))
             conn.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
+        conn.commit()  # so a per-file rollback below can't undo these deletions
 
         # 2. Decide what to (re-)index: new/edited files, plus files that were indexed
         #    without embeddings last time if Ollama is available now.
         retry = _documents_missing_embeddings(conn) if embeddings_enabled else set()
         to_index = []
+        unreadable = []  # files that couldn't be opened (broken links, permissions, deleted mid-scan)
         for rel, path in sorted(markdown.items()):
-            file_hash = hash_file(path)
+            try:
+                file_hash = hash_file(path)
+            except OSError as e:
+                print(f"  [warn] skipping {rel}: {e}")
+                unreadable.append(rel)
+                continue
             if rel not in known or known[rel][1] != file_hash or rel in retry:
                 to_index.append((rel, path, file_hash))
 
+        # 3. Read and chunk every file first (fast: no Ollama involved), so embedding
+        #    can be done in full batches across files. Vaults are mostly short notes,
+        #    so batching only within a file would barely help.
+        pending = []  # (rel, file_hash, last_modified, chunks)
+        for rel, path, file_hash in to_index:
+            try:
+                with open(path, "r", encoding="utf-8", errors="replace") as f:
+                    raw_text = f.read()
+                last_modified = os.path.getmtime(path)
+            except OSError as e:  # vanished or became unreadable since the scan
+                print(f"  [warn] skipping {rel}: {e}")
+                unreadable.append(rel)
+                continue
+            pending.append((rel, file_hash, last_modified, chunk_text(raw_text)))
+
+        grand_total = sum(len(chunks) for *_, chunks in pending)
+        if pending:
+            print(f"Indexing {len(pending)} file(s), {grand_total} chunk(s)"
+                  + (f", {EMBED_BATCH_SIZE} per embedding request" if embeddings_enabled else "") + " ...")
+
+        # 4. Embed in batches and save file by file. A window of files is embedded
+        #    together, then written and committed, so progress survives interruption.
         total_chunks = 0
         missing_vectors = 0
-        for rel, path, file_hash in to_index:
-            print(f"Indexing {rel} ...")
-            with open(path, "r", encoding="utf-8", errors="replace") as f:
-                raw_text = f.read()
-            last_modified = os.path.getmtime(path)
-
-            # Upsert the document row, then wipe out any of its old chunks
-            # (simplest correct approach: re-chunk the whole file on any change).
-            if rel in known:
-                document_id = known[rel][0]
-                conn.execute(
-                    "UPDATE documents SET file_hash = ?, last_modified = ? WHERE id = ?",
-                    (file_hash, last_modified, document_id),
-                )
-                conn.execute("DELETE FROM chunks WHERE document_id = ?", (document_id,))
-            else:
-                cur = conn.execute(
-                    "INSERT INTO documents (file_path, file_hash, last_modified) VALUES (?, ?, ?)",
-                    (rel, file_hash, last_modified),
-                )
-                document_id = cur.lastrowid
-
-            for chunk in chunk_text(raw_text):
-                vector = None
-                if embeddings_enabled:
-                    vector = get_embedding(chunk)
-                    if vector is None:
-                        # Ollama went away mid-run: stop trying for the rest of this refresh.
+        files_indexed = 0
+        started = time.perf_counter()
+        i = 0
+        while i < len(pending):
+            window = [pending[i]]
+            i += 1
+            while i < len(pending) and sum(len(p[3]) for p in window) < EMBED_BATCH_SIZE:
+                window.append(pending[i])
+                i += 1
+            texts = [chunk for *_, chunks in window for chunk in chunks]
+            vectors = [None] * len(texts)
+            if embeddings_enabled:
+                vectors = []
+                for start in range(0, len(texts), EMBED_BATCH_SIZE):
+                    vectors.extend(get_embeddings(texts[start:start + EMBED_BATCH_SIZE]))
+                if texts and all(v is None for v in vectors):
+                    # Either Ollama went away mid-run, or it rejected these particular
+                    # passages. Only stop embedding for the rest of the refresh if it's gone.
+                    still_up, reason = ollama_available()
+                    if not still_up:
                         embeddings_enabled = False
-                        ollama_reason = "embedding request failed during ingest"
-                if vector is None:
-                    missing_vectors += 1
-                conn.execute(
-                    """
-                    INSERT INTO chunks (document_id, raw_text, stemmed_tokens, embedding_vector)
-                    VALUES (?, ?, ?, ?)
-                    """,
-                    (document_id, chunk, stem_chunk(chunk), _vector_to_blob(vector)),
-                )
-                total_chunks += 1
-
-            conn.commit()
+                        ollama_reason = f"embedding stopped during ingest: {reason}"
+            vector_iter = iter(vectors)
+            for rel, file_hash, last_modified, chunks in window:
+                file_vectors = [next(vector_iter) for _ in chunks]
+                _store_document(conn, known, rel, file_hash, last_modified, chunks, file_vectors)
+                files_indexed += 1
+                total_chunks += len(chunks)
+                missing_vectors += sum(1 for v in file_vectors if v is None)
+            rate = total_chunks / max(time.perf_counter() - started, 1e-6)
+            print(f"  {total_chunks}/{grand_total} chunks ({rate:.0f}/s)")
 
         conn.commit()
     finally:
         conn.close()
 
-    if to_index or stale:
-        message = (f"Indexed {len(to_index)} file(s), {total_chunks} chunk(s); "
+    if files_indexed or stale:
+        message = (f"Indexed {files_indexed} file(s), {total_chunks} chunk(s); "
                    f"removed {len(stale)} deleted file(s).")
     else:
         message = "No new or modified notes. Index is up to date."
+    if unreadable:
+        message += f" Skipped {len(unreadable)} unreadable file(s)."
     print(message)
 
     stats = {
-        "files_indexed": len(to_index),
+        "files_indexed": files_indexed,
         "chunks_indexed": total_chunks,
         "files_removed": len(stale),
         "chunks_without_embeddings": missing_vectors,
         "embeddings_enabled": embeddings_enabled,
         "unsupported_files": unsupported,
+        "unreadable_files": sorted(unreadable),
         "message": message,
     }
     if not embeddings_enabled:

@@ -182,3 +182,60 @@ def test_chunker_merges_short_paragraphs_and_keeps_headings_attached():
     chunks = offline_ingest.chunk_text(text, mode="sentence")
     assert chunks[0].startswith("# Title")
     assert all(len(c) >= 75 for c in chunks)
+
+
+def test_ingest_skips_unreadable_files_instead_of_crashing(tmp_path, monkeypatch):
+    # A real vault can hold a broken symlink (or a file deleted mid-scan); it must
+    # be reported and skipped, not take the whole refresh down.
+    notes = tmp_path / "notes"
+    notes.mkdir()
+    (notes / "good.md").write_text("Auroras glow green over Iceland in winter.\n")
+    (notes / "broken.md").symlink_to(tmp_path / "does-not-exist.md")
+    monkeypatch.setattr(offline_ingest, "ollama_available", lambda: (False, "test: offline"))
+
+    stats = offline_ingest.ingest(notes_dir=str(notes), db_path=str(tmp_path / "test.db"))
+
+    assert stats["files_indexed"] == 1
+    assert stats["unreadable_files"] == ["broken.md"]
+
+
+def _fake_ollama(monkeypatch, has_embed_endpoint=True):
+    """Route offline_ingest's HTTP calls to an in-memory fake and count requests."""
+    import urllib.error
+    calls = {"embed": 0, "legacy": 0}
+
+    def fake_post(url, payload, timeout):
+        if url.endswith("/api/embed"):
+            if not has_embed_endpoint:
+                raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
+            calls["embed"] += 1
+            return {"embeddings": [[float(len(t)), 1.0] for t in payload["input"]]}
+        calls["legacy"] += 1
+        return {"embedding": [float(len(payload["prompt"])), 1.0]}
+
+    monkeypatch.setattr(offline_ingest, "_post_json", fake_post)
+    monkeypatch.setattr(offline_ingest, "_legacy_endpoint_only", False)
+    monkeypatch.setattr(offline_ingest, "ollama_available", lambda: (True, "test: up"))
+    return calls
+
+
+def test_ingest_embeds_many_short_notes_in_few_requests(tmp_path, monkeypatch):
+    notes = tmp_path / "notes"
+    notes.mkdir()
+    for i in range(40):  # 40 one-chunk notes, like a typical vault
+        (notes / f"n{i:02}.md").write_text(f"Short note number {i} about rivers and light.\n")
+    calls = _fake_ollama(monkeypatch)
+    monkeypatch.setattr(offline_ingest, "EMBED_BATCH_SIZE", 16)
+
+    stats = offline_ingest.ingest(notes_dir=str(notes), db_path=str(tmp_path / "test.db"))
+
+    assert stats["chunks_indexed"] == 40 and stats["chunks_without_embeddings"] == 0
+    assert calls["embed"] == 3  # 16 + 16 + 8 across files, not 40 requests
+    assert calls["legacy"] == 0
+
+
+def test_get_embeddings_falls_back_on_old_ollama(monkeypatch):
+    calls = _fake_ollama(monkeypatch, has_embed_endpoint=False)
+    vectors = offline_ingest.get_embeddings(["one", "three"])
+    assert vectors == [[3.0, 1.0], [5.0, 1.0]]
+    assert calls["legacy"] == 2

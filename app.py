@@ -21,6 +21,7 @@ allows arbitrary code execution and must never be reachable from a container por
 """
 
 import os
+import traceback
 
 from flask import Flask, jsonify, render_template, request
 
@@ -64,7 +65,11 @@ def api_refresh():
     """
     # Re-check Ollama first so a refresh after starting Ollama picks it up immediately.
     status = cosi_engine.check_ollama(force=True)
-    stats = offline_ingest.ingest()
+    try:
+        stats = offline_ingest.ingest()
+    except Exception as e:  # report it to the page instead of an HTML error page
+        traceback.print_exc()
+        return jsonify({"error": f"{type(e).__name__}: {e}"}), 500
     if isinstance(stats, dict):
         stats.setdefault("embeddings_enabled", status["ok"])
         if not status["ok"]:

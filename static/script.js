@@ -167,10 +167,16 @@ refreshBtn.addEventListener("click", () => {
     refreshStatusEl.textContent = "";
 
     fetch("/api/refresh", { method: "POST" })
-        .then((res) => res.json())
+        .then((res) => res.json().catch(() => ({
+            error: `server error (HTTP ${res.status}); see the terminal running cosi for details`,
+        })))
         .then((stats) => {
             refreshBtn.textContent = "Refresh index";
             refreshBtn.disabled = false;
+            if (stats.error) {
+                refreshStatusEl.textContent = `Refresh failed: ${stats.error}`;
+                return;
+            }
 
             const parts = [];
             if (stats.files_indexed > 0) {
@@ -183,6 +189,11 @@ refreshBtn.addEventListener("click", () => {
             }
             if (stats.unsupported_files && stats.unsupported_files.length > 0) {
                 parts.push(`Skipped ${stats.unsupported_files.length} unsupported file(s) (not .md).`);
+            }
+            if (stats.unreadable_files && stats.unreadable_files.length > 0) {
+                const shown = stats.unreadable_files.slice(0, 3).join(", ");
+                const more = stats.unreadable_files.length > 3 ? ", ..." : "";
+                parts.push(`Couldn't read ${stats.unreadable_files.length} file(s): ${shown}${more}.`);
             }
             if (stats.warning) {
                 parts.push(stats.warning);

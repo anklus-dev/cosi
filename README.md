@@ -92,7 +92,7 @@ The Linux variant uses host networking, because Ollama on Linux only listens on 
 ### 3. Use it
 
 1. Open <http://localhost:8000>.
-2. Click **Refresh Index** to index the notes in `notes/` (needed on first run and after editing notes).
+2. Click **Refresh Index** to index the notes in `notes/` (needed on first run and after editing notes). The first index of a large folder takes a while, since every passage is embedded; after that, a refresh only re-embeds notes that changed.
 3. Search.
 
 Your notes folder (`./notes`) and the index (`./data/cosi.db`) are mounted into the container, so edits to your notes are visible after a refresh and the index survives restarts.
@@ -121,6 +121,7 @@ All settings are environment variables (see `config.py`):
 | `COSI_OLLAMA_URL` | `http://localhost:11434` (container: `http://host.docker.internal:11434`) | Where Ollama is reachable |
 | `COSI_EMBED_MODEL` | `nomic-embed-text` | Embedding model |
 | `COSI_OLLAMA_TIMEOUT` | `30` | Seconds to wait for an embedding |
+| `COSI_EMBED_BATCH` | `32` | Passages per embedding request while indexing (higher is faster on a GPU; lower it if a slow CPU times out) |
 | `COSI_NOTES_DIR` | `./notes` | Folder of `.md` notes to index |
 | `COSI_BIND` / `COSI_PORT` | `0.0.0.0` / `8000` | Web server address |
 | `COSI_DEBUG` | `0` | `1` enables Flask debug mode (local development only) |
@@ -165,5 +166,5 @@ python -m pytest tests/
 
 - **2026-08-29:** Initialized private Git repository. Verified professor's BM25 benchmark script running successfully on NixOS.
 - **2026-10:** Docker setup, configurable Ollama URL and notes folder, Ollama health check with keyword-only fallback, sentence-aware chunking, per-result score breakdown in the UI, unit tests.
-- **2026-11:** Added a retrieval evaluation; lowered the keyword weight in the blend from 0.4 to 0.2 based on it.
+- **2026-11:** Added a retrieval evaluation; lowered the keyword weight in the blend from 0.4 to 0.2 based on it. Indexing now sends passages to Ollama in batches (`/api/embed`) instead of one request per passage, batching across files so vaults of short notes benefit too; unreadable files are skipped and reported instead of stopping a refresh.
 

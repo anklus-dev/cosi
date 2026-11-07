@@ -15,6 +15,9 @@ Variables (all optional):
                          Docker (Mac/Windows): http://host.docker.internal:11434
     COSI_EMBED_MODEL     Embedding model name. Default: nomic-embed-text
     COSI_OLLAMA_TIMEOUT  Seconds to wait for an embedding response. Default: 30
+    COSI_EMBED_BATCH     Passages sent to Ollama per embedding request while indexing.
+                         Default: 32. Larger batches are faster on a GPU; lower it if
+                         requests time out on a slow CPU.
     COSI_NOTES_DIR       Folder of .md notes to index. Default: ./notes
     COSI_BIND            Address Flask listens on. Default: 0.0.0.0
     COSI_PORT            Port Flask listens on. Default: 8000
@@ -37,7 +40,9 @@ def _normalize_url(raw):
 OLLAMA_URL = _normalize_url(os.environ.get("COSI_OLLAMA_URL", "http://localhost:11434"))
 EMBED_MODEL = os.environ.get("COSI_EMBED_MODEL", "nomic-embed-text")
 
-EMBED_URL = f"{OLLAMA_URL}/api/embeddings"
+EMBED_URL = f"{OLLAMA_URL}/api/embeddings"      # legacy: one text per request
+EMBED_BATCH_URL = f"{OLLAMA_URL}/api/embed"     # current: a list of texts per request
+EMBED_BATCH_SIZE = max(1, int(os.environ.get("COSI_EMBED_BATCH", "32")))
 TAGS_URL = f"{OLLAMA_URL}/api/tags"
 
 OLLAMA_TIMEOUT = float(os.environ.get("COSI_OLLAMA_TIMEOUT", "30"))
